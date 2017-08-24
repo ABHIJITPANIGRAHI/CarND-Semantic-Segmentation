@@ -10,7 +10,7 @@ import tensorflow as tf
 from glob import glob
 from urllib.request import urlretrieve
 from tqdm import tqdm
-
+import cv2
 
 class DLProgress(tqdm):
     last_block = 0
@@ -57,6 +57,13 @@ def maybe_download_pretrained_vgg(data_dir):
         # Remove zip file to save space
         os.remove(os.path.join(vgg_path, vgg_filename))
 
+def brigthness(image, brigthness):
+    table = np.array([i+ brigthness    for i in np.arange(0, 256)])
+    table[table<0]=0
+    table[table>255]=255
+    table=table.astype("uint8")
+    # apply gamma correction using the lookup table
+    return cv2.LUT(image, table)
 
 def gen_batch_function(data_folder, image_shape):
     """
@@ -81,20 +88,25 @@ def gen_batch_function(data_folder, image_shape):
         for batch_i in range(0, len(image_paths), batch_size):
             images = []
             gt_images = []
-            for image_file in image_paths[batch_i:batch_i+batch_size]:
-                gt_image_file = label_paths[os.path.basename(image_file)]
+            for aug in range(10):
+                for image_file in image_paths[batch_i:batch_i+batch_size]:
+                    gt_image_file = label_paths[os.path.basename(image_file)]
 
-                image = scipy.misc.imresize(scipy.misc.imread(image_file), image_shape)
-                gt_image = scipy.misc.imresize(scipy.misc.imread(gt_image_file), image_shape)
+                    image = scipy.misc.imresize(cv2.imread(image_file), image_shape)
+                    gt_image = scipy.misc.imresize(cv2.imread(gt_image_file), image_shape)
 
-                gt_bg = np.all(gt_image == background_color, axis=2)
-                gt_bg = gt_bg.reshape(*gt_bg.shape, 1)
-                gt_image = np.concatenate((gt_bg, np.invert(gt_bg)), axis=2)
+                    gt_bg = np.all(gt_image == background_color, axis=2)
+                    gt_bg = gt_bg.reshape(*gt_bg.shape, 1)
+                    gt_image = np.concatenate((gt_bg, np.invert(gt_bg)), axis=2)
 
-                images.append(image)
-                gt_images.append(gt_image)
+                    # Augmentation
+                    image=brigthness(image, random.randint(-100,100))
+                    cv2.imshow('img',image)
+                    cv2.waitKey(1)
 
-            yield np.array(images), np.array(gt_images)
+                    images.append(image)
+                    gt_images.append(gt_image)
+                yield np.array(images), np.array(gt_images)
     return get_batches_fn
 
 
@@ -124,10 +136,9 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape)
 
         yield os.path.basename(image_file), np.array(street_im)
 
-
-def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image):
+def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image, run_label=""):
     # Make folder for current run
-    output_dir = os.path.join(runs_dir, str(time.time()))
+    output_dir = os.path.join(runs_dir, run_label + str(time.time()))
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
     os.makedirs(output_dir)
