@@ -57,7 +57,7 @@ Figure: Training loss after 10 epochs of training with augmentation (Command to 
 
 - flipping every image
 - translating +/- 100 in x axis and +/- 30 in y axis
-- brigthness +/- 150 (in 0-255 range)
+- brightness +/- 150 (in 0-255 range)
 
 Example batch:
 
