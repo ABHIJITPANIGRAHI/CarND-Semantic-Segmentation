@@ -6,6 +6,11 @@ In this project, you'll label the pixels of a road in images using a Fully Convo
 
 Figure: Results after 10 epochs of training with augmentation (Command to reproduce: `python main.py 10 16 0.5`)
 
+Check road segmentation with 4k video on youtube:
+
+[![Road segmentation for Self-Driving Car - Dataset #2](http://img.youtube.com/vi/35DnxJl0aqA/0.jpg)](http://www.youtube.com/watch?v=35DnxJl0aqA)
+
+
 ## Setup
 ### Frameworks and Packages
 Make sure you have the following is installed:
