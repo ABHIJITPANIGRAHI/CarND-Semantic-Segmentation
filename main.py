@@ -6,8 +6,10 @@ from distutils.version import LooseVersion
 import project_tests as tests
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import numpy as np
 import sys
 import cv2
+import scipy
 
 # Check TensorFlow Version
 assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
@@ -23,7 +25,7 @@ else:
 
 
 KEEP_PROB = 0.5
-EPOCHS = 30
+EPOCHS = 50
 BATCH_SIZE = 16
 def kernel_initializer():
     return tf.truncated_normal_initializer(stddev=0.01)
@@ -127,6 +129,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     loss_plot=[]
     sample=0
     for epoch in tqdm(range(epochs)):
+        counter = 0
         for image, image_c in get_batches_fn(batch_size):
             _,loss = sess.run([train_op, cross_entropy_loss], feed_dict={
                 input_image: image,
@@ -137,6 +140,10 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
             samples_plot.append(sample)
             loss_plot.append(loss)
             sample = sample + batch_size
+            print("#%4d  (%10d): %.20f"%(counter, sample, loss))
+            # if counter > 10:
+            #     break
+            counter = counter + 1
         print("%4d/%4d Loss: %f"%(epoch,epochs,loss))
     plt.plot(samples_plot,loss_plot, 'ro')
     plt.savefig('runs/E%04d-B%04d-K%f.png'%(EPOCHS, BATCH_SIZE, KEEP_PROB))
@@ -164,23 +171,27 @@ def gen_test_output_video(sess, logits, keep_prob, image_pl, video_file, image_s
         ret, frame = cap.read()
         if frame is None:
             break
-        # image = scipy.misc.imresize(frame, image_shape)
-        #
-        # im_softmax = sess.run(
-        #     [tf.nn.softmax(logits)],
-        #     {keep_prob: 1.0, image_pl: [image]})
-        # im_softmax = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
-        # segmentation = (im_softmax > 0.5).reshape(image_shape[0], image_shape[1], 1)
-        # mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
-        # mask = scipy.misc.toimage(mask, mode="RGBA")
-        # street_im = scipy.misc.toimage(image)
-        # street_im.paste(mask, box=None, mask=mask)
-        cv2.imshow('frame',frame)
-        # cv2.imshow('street',np.array(street_im))
-        # cv2.imrite("image%08d.jpg"%counter)
+        image = scipy.misc.imresize(frame, image_shape)
+
+        im_softmax = sess.run(
+            [tf.nn.softmax(logits)],
+            {keep_prob: 1.0, image_pl: [image]})
+        im_softmax = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
+        segmentation = (im_softmax > 0.5).reshape(image_shape[0], image_shape[1], 1)
+        mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
+        mask_full = scipy.misc.imresize(mask, frame.shape)
+        mask_full = scipy.misc.toimage(mask_full, mode="RGBA")
+        mask = scipy.misc.toimage(mask, mode="RGBA")
+
+
+        street_im = scipy.misc.toimage(image)
+        street_im.paste(mask, box=None, mask=mask)
+
+        street_im_full = scipy.misc.toimage(frame)
+        street_im_full.paste(mask_full, box=None, mask=mask_full)
+
+        cv2.imwrite("4k-result/4k_image%08d.jpg"%counter,np.array(street_im_full))
         counter=counter+1
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
 
     # When everything done, release the capture
     cap.release()
@@ -238,7 +249,7 @@ def run():
         print("Model saved in file: %s" % save_path)
 
         # Save inference data using helper.save_inference_samples
-        # helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, _input, run_label=run_label)
+        helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, _input)#, run_label=run_label)
         # OPTIONAL: Apply the trained model to a video
 
         video_file='0002-20170519-2.mp4'
